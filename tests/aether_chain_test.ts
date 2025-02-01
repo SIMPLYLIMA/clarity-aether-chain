@@ -24,61 +24,59 @@ Clarinet.test({
 });
 
 Clarinet.test({
-    name: "Product registration and transfer test",
+    name: "Product registration and maintenance test",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const manufacturer = accounts.get('wallet_1')!;
-        const dealer = accounts.get('wallet_2')!;
+        const technician = accounts.get('wallet_2')!;
         
-        // Register manufacturer
+        // Register manufacturer and technician
         let block1 = chain.mineBlock([
             Tx.contractCall('aether-chain', 'register-manufacturer', [
                 types.principal(manufacturer.address)
-            ], deployer.address)
-        ]);
-        
-        // Register dealer
-        let block2 = chain.mineBlock([
-            Tx.contractCall('aether-chain', 'register-dealer', [
-                types.principal(dealer.address)
+            ], deployer.address),
+            Tx.contractCall('aether-chain', 'register-technician', [
+                types.principal(technician.address)
             ], manufacturer.address)
         ]);
         
         // Register product
-        let block3 = chain.mineBlock([
+        let block2 = chain.mineBlock([
             Tx.contractCall('aether-chain', 'register-product', [
                 types.ascii("PROD001"),
-                types.ascii("Luxury Watch XYZ")
+                types.ascii("Luxury Watch XYZ"),
+                types.uint(52560), // 1 year warranty
+                types.uint(17280)  // 4 month service interval
             ], manufacturer.address)
         ]);
         
-        // Transfer product
-        let block4 = chain.mineBlock([
-            Tx.contractCall('aether-chain', 'transfer-product', [
+        // Record maintenance
+        let block3 = chain.mineBlock([
+            Tx.contractCall('aether-chain', 'service-product', [
                 types.ascii("PROD001"),
-                types.principal(dealer.address)
-            ], manufacturer.address)
+                types.ascii("Regular maintenance completed")
+            ], technician.address)
         ]);
         
         block1.receipts[0].result.expectOk();
+        block1.receipts[1].result.expectOk();
         block2.receipts[0].result.expectOk();
         block3.receipts[0].result.expectOk();
-        block4.receipts[0].result.expectOk();
         
-        // Verify product info
-        let block5 = chain.mineBlock([
-            Tx.contractCall('aether-chain', 'get-product-info', [
+        // Verify maintenance record
+        let block4 = chain.mineBlock([
+            Tx.contractCall('aether-chain', 'get-maintenance-history', [
                 types.ascii("PROD001")
             ], deployer.address)
         ]);
         
-        const productInfo = block5.receipts[0].result.expectSome();
-        assertEquals(productInfo.current-owner, dealer.address);
+        const maintenanceHistory = block4.receipts[0].result.expectSome();
+        assertEquals(maintenanceHistory.services.length, 1);
     }
 });
 
 Clarinet.test({
-    name: "Authentication verification test",
+    name: "Warranty and service status test",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const manufacturer = accounts.get('wallet_1')!;
@@ -90,17 +88,23 @@ Clarinet.test({
             ], deployer.address),
             Tx.contractCall('aether-chain', 'register-product', [
                 types.ascii("PROD002"),
-                types.ascii("Luxury Bag ABC")
+                types.ascii("Luxury Watch ABC"),
+                types.uint(52560),
+                types.uint(17280)
             ], manufacturer.address)
         ]);
         
-        // Verify authenticity
-        let verifyBlock = chain.mineBlock([
-            Tx.contractCall('aether-chain', 'verify-authenticity', [
+        // Check warranty status
+        let block2 = chain.mineBlock([
+            Tx.contractCall('aether-chain', 'check-warranty-status', [
+                types.ascii("PROD002")
+            ], deployer.address),
+            Tx.contractCall('aether-chain', 'service-due', [
                 types.ascii("PROD002")
             ], deployer.address)
         ]);
         
-        verifyBlock.receipts[0].result.expectOk().expectBool(true);
+        block2.receipts[0].result.expectOk().expectBool(true);
+        block2.receipts[1].result.expectOk().expectBool(false);
     }
 });
